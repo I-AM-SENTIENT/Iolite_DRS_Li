@@ -2,9 +2,9 @@
 #/ Type: DRS
 #/ Name: Li isotopes 2.0
 #/ Authors: Mati i Robert
-#/ Description: A thing
+#/ Description: A DRS to process Li isotope data
 #/ References:
-#/ Version:
+#/ Version: 2.1
 #/ Contact:
 
 """
@@ -59,6 +59,7 @@ def runDRS():
     cutoff = settings["MaskCutoff"]
     trim = settings["MaskTrim"]
     ref_mat = settings["ReferenceMaterial"]
+    masking = settings["Mask"]
 
     # Create debug messages for the settings being used
     IoLog.debug("indexChannelName = %s" % indexChannel.name)
@@ -94,15 +95,16 @@ def runDRS():
     Li6_CPS = data.timeSeries('Li6_CPS').data()
     Li7_6Li = Li7_CPS / Li6_CPS
     Li7_CPS_time = data.timeSeries("Li7_CPS").time()
+
     #Output the ratio 
     data.createTimeSeries("Li7/6Li",data.Intermediate,Li7_CPS_time,Li7_6Li)
     
     #Update
     data.updateResults()
     
-    #Calculate delta
+    #Calculate spline of reference material
     SplineLi7_Li6 = data.spline(ref_mat, "Li7/6Li").data()
-    data.createTimeSeries("DupaSpline",data.Intermediate, Li7_CPS_time, SplineLi7_Li6)
+    data.createTimeSeries("Ref_mat_Spline",data.Intermediate, Li7_CPS_time, SplineLi7_Li6)
     
     #Calculate delta 
     Delta_Li7_6 = ((data.timeSeries('Li7/6Li').data() / SplineLi7_Li6)-1) *1000
@@ -131,14 +133,18 @@ def settingsWidget():
     if timeSeriesNames:
             defaultChannelName = timeSeriesNames[0]
 
+    # Set default settings
     drs.setSetting("IndexChannel", defaultChannelName)
     drs.setSetting("MaskChannel", defaultChannelName)
     drs.setSetting("ReferenceMaterial",None)
+    drs.setSetting("Mask", False)
     drs.setSetting("MaskCutoff", 0.0)
     drs.setSetting("MaskTrim", 0.0)
 
+
     settings = drs.settings()
 
+    # IndexChannel Selector
     indexComboBox = QtGui.QComboBox(widget)
     indexComboBox.addItems(data.timeSeriesNames(data.Input))
     indexComboBox.setCurrentText(settings["IndexChannel"])
@@ -149,21 +155,30 @@ def settingsWidget():
     rmComboBox.addItems(data.referenceMaterialNames())
     rmComboBox.currentTextChanged.connect(lambda s: drs.setSetting("ReferenceMaterial",str(s)))
     
+    # Input for MaskChannel
     maskComboBox = QtGui.QComboBox(widget)
     maskComboBox.addItems(data.timeSeriesNames(data.Input))
     maskComboBox.setCurrentText(settings["MaskChannel"])
     maskComboBox.currentTextChanged.connect(lambda t: drs.setSetting("MaskChannel", t))
 
+    # Input for MaskCutoff
     maskLineEdit = QtGui.QLineEdit(widget)
     maskLineEdit.setText(settings["MaskCutoff"])
     maskLineEdit.textChanged.connect(lambda t: drs.setSetting("MaskCutoff", float(t)))
 
+    # Input for MaskTrim
     maskTrimLineEdit = QtGui.QLineEdit(widget)
     maskTrimLineEdit.setText(settings["MaskTrim"])
     maskTrimLineEdit.textChanged.connect(lambda t: drs.setSetting("MaskTrim", float(t)))
 
+    # Check box for the mask
+    maskCheckBox = QtGui.QCheckBox(widget)
+    maskCheckBox.toggled.connect(lambda t: drs.setSettings("Mask", bool(t)))
+
+    # Add to layout
     formLayout.addRow("Index channel", indexComboBox)
     formLayout.addRow("Reference material", rmComboBox)
+    formLayout.addRow("Mask", maskCheckBox)
     formLayout.addRow("Mask channel", maskComboBox)
     formLayout.addRow("Mask cutoff", maskLineEdit)
     formLayout.addRow("Mask trim", maskTrimLineEdit)
